@@ -4,15 +4,13 @@ import requests
 import feedparser
 import asyncio
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
-# Настройка логирования
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# Константы
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ABACUS_API_KEY = os.getenv("ABACUS_API_KEY")
-CHANNEL_ID = "@h2_nation" # Убедитесь, что это юзернейм вашего канала
+CHANNEL_ID = "@h2_nation" 
 
 def get_hydrogen_news():
     news_items = []
@@ -58,11 +56,12 @@ async def publish_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(text="🚀 Опубликовано!")
 
 if __name__ == '__main__':
-    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    
+    # Новый способ запуска, который обходит ошибку Python 3.13
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("fetch", fetch_news))
     application.add_handler(CallbackQueryHandler(button_click, pattern='^[0-9]$'))
     application.add_handler(CallbackQueryHandler(publish_post, pattern='^publish$'))
     
-    application.run_polling()
+    print("Бот запущен...")
+    application.run_polling(close_loop=False)
