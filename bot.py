@@ -2,8 +2,9 @@ import logging
 import os
 import requests
 import feedparser
+import asyncio
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
 # Настройка логирования
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -23,18 +24,18 @@ def get_hydrogen_news():
             news_items.append({"title": entry.title, "link": entry.link})
     return news_items
 
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text("Привет! Я ваш H2-ассистент. Используйте /fetch для новостей.")
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Привет! Я ваш H2-ассистент. Используйте /fetch для новостей.")
 
-def fetch_news(update: Update, context: CallbackContext):
+async def fetch_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
     news = get_hydrogen_news()
     context.user_data['current_news'] = news
     keyboard = [[InlineKeyboardButton(f"{i+1}. {item['title'][:50]}...", callback_data=str(i))] for i, item in enumerate(news)]
-    update.message.reply_text("Выберите новость:", reply_markup=InlineKeyboardMarkup(keyboard))
+    await update.message.reply_text("Выберите новость:", reply_markup=InlineKeyboardMarkup(keyboard))
 
-def button_click(update: Update, context: CallbackContext):
+async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    query.answer()
+    await query.answer()
     news_idx = int(query.data)
     selected_news = context.user_data['current_news'][news_idx]
     
@@ -48,23 +49,20 @@ def button_click(update: Update, context: CallbackContext):
     post_text = response.json()['choices'][0]['message']['content']
     context.user_data['pending_post'] = post_text
     keyboard = [[InlineKeyboardButton("✅ Опубликовать", callback_data="publish")]]
-    query.edit_message_text(text=f"Предпросмотр:\n\n{post_text}", reply_markup=InlineKeyboardMarkup(keyboard))
+    await query.edit_message_text(text=f"Предпросмотр:\n\n{post_text}", reply_markup=InlineKeyboardMarkup(keyboard))
 
-def publish_post(update: Update, context: CallbackContext):
+async def publish_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    query.answer()
-    context.bot.send_message(chat_id=CHANNEL_ID, text=context.user_data.get('pending_post'))
-    query.edit_message_text(text="🚀 Опубликовано!")
-
-def main():
-    updater = Updater(TELEGRAM_TOKEN)
-    dp = updater.dispatcher
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("fetch", fetch_news))
-    dp.add_handler(CallbackQueryHandler(button_click, pattern='^[0-9]$'))
-    dp.add_handler(CallbackQueryHandler(publish_post, pattern='^publish$'))
-    updater.start_polling()
-    updater.idle()
+    await query.answer()
+    await context.bot.send_message(chat_id=CHANNEL_ID, text=context.user_data.get('pending_post'))
+    await query.edit_message_text(text="🚀 Опубликовано!")
 
 if __name__ == '__main__':
-    main()
+    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("fetch", fetch_news))
+    application.add_handler(CallbackQueryHandler(button_click, pattern='^[0-9]$'))
+    application.add_handler(CallbackQueryHandler(publish_post, pattern='^publish$'))
+    
+    application.run_polling()
